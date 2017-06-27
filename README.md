@@ -1,2 +1,9 @@
-# term_prep
-String analyzer to prepare terms out of strings. Written in Erlang.
+term_prep
+=====
+
+String analyzer library that is written in Erlang.
+
+Build
+-----
+
+    $ rebar3 compile
