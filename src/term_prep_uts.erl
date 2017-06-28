@@ -57,6 +57,10 @@ wb([A | Rest], Word,  Acc, undefined) -> %% first char after boundary
     case term_prep_uwb_lib:prop(A) of
 	undefined ->
 	    wb(Rest, Word, Acc, undefined);
+	WB4 when WB4 == 'Extend' orelse
+		 WB4 == 'Format' orelse
+		 WB4 == 'ZWJ' ->
+	    wb(Rest, Word, Acc, WB4);
 	Next ->
 	    wb(Rest, [A | Word], Acc, Next)
     end;
@@ -64,6 +68,10 @@ wb([A], Word, Acc, Last) ->
     case {Last, term_prep_uwb_lib:prop(A)} of
 	{_, undefined} ->
 	    wb([], Word, Acc, undefined);
+	{_, WB4} when WB4 == 'Extend' orelse
+		      WB4 == 'Format' orelse
+		      WB4 == 'ZWJ' ->
+	    wb([], Word, Acc, WB4);
 	{_, Else} ->
 	    wb([], [A | Word], Acc, Else)
     end;
@@ -73,12 +81,10 @@ wb([A | Rest], Word, Acc, Last) ->
 	    wb(Rest, [A | Word], Acc, 'Glue_After_Zwj');
 	{'ZWJ', 'E_Base_GAZ'} -> %%WB3c
 	    wb(Rest, [A | Word], Acc, 'E_Base_GAZ');
-	{_, 'Extend'} -> %%WB4
-	    wb(Rest, Word, Acc, 'Extend');
-	{_, 'Format'} -> %%WB4
-	    wb(Rest, Word, Acc, 'Format');
-	{_, 'ZWJ'} -> %%WB4
-	    wb(Rest, Word, Acc, 'ZWJ');
+	{_, WB4} when WB4 == 'Extend' orelse
+	              WB4 == 'Format' orelse
+		      WB4 == 'ZWJ' -> %%WB4
+	    wb(Rest, Word, Acc, WB4);
 	{'ALetter', 'ALetter'} -> %%WB5
 	    wb(Rest, [A | Word], Acc, 'ALetter');
 	{'ALetter', 'Hebrew_Letter'} -> %%WB5
