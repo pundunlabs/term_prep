@@ -34,3 +34,10 @@ erl_crash.dump
 
 # ignore rebar.lock file
 rebar.lock
+.rebar/
+
+#generated erlang sources
+term_prep_wbp.erl
+
+#other
+priv/latest/
