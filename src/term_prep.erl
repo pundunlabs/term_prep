@@ -56,8 +56,6 @@ create_code_(File) ->
     {ok, _, Beam } = compile:forms(CEForms, [from_core, binary]),
     code:load_binary(?UWB_MOD, [], Beam).
 
- 
-
 %%--------------------------------------------------------------------
 %% @doc
 %% Make module 'stringprep_lib' with map/1 and prohibit/1 functions.
@@ -81,8 +79,10 @@ make_prop_fun(Mappings) ->
     Else = cerl:c_var('Else'),
 
     Clauses = make_prop_clauses(Arg1, Mappings),
-    
-    LastClause = cerl:c_clause([Else], cerl:c_atom(undefined), Arg1),
+
+    LastClause = cerl:c_clause([Else],
+			       cerl:c_atom(true),
+			       cerl:c_atom(undefined)),
     Case = cerl:c_case(Arg1, Clauses ++ [LastClause]),
     {cerl:c_fname(prop,1), cerl:c_fun([Arg1], Case)}.
 
@@ -93,7 +93,7 @@ make_prop_fun(Mappings) ->
 %%--------------------------------------------------------------------
 make_prop_clauses(Arg1, Mappings) ->
     make_prop_clauses(Arg1, Mappings,[]).
-    
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Make case clauses for prop/1 function.
