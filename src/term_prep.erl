@@ -50,9 +50,15 @@
 			{M :: module(), F :: atom(), A :: [any()]} |
 			undefined.
 
+-type token_stats() :: unique |
+		       freqs |
+		       positions |
+		       undefined.
+
 -type token_filter() :: #{transform := token_transform(),
 			  add := token_add() | [token_add()],
-			  delete := token_delete() | [token_delete()]} |
+			  delete := token_delete() | [token_delete()],
+			  stats := token_stats()} |
 			undefined.
 
 -type config() :: #{char_filter := char_filter(),
@@ -78,7 +84,8 @@ config(unicode_nfc_words) ->
       tokenizer => unicode_word_boundaries,
       token_filter => #{transform => lowercase,
 			add => undefined,
-			delete => [english_stopwords]}};
+			delete => [english_stopwords],
+			stats => unique}};
 config(unicode_nfd_words) ->
     C = config(unicode_nfc_words),
     C#{char_filter => nfd};
@@ -100,13 +107,17 @@ config(_) ->
       token_filter => undefined}.
 
 -spec analyze(Data :: unicode:chardata()) ->
-    [unicode:charlist()] | unicode:chardata().
+    [unicode:charlist()] |
+    [{unicode:charlist(), Freq ::pos_integer()}] |
+    [{unicode:charlist(), Freq ::pos_integer(), Pos :: integer()}] .
 analyze(Data)  ->
     analyze(config(unicode_nfc_words), Data).
 
 -spec analyze(Config :: term_prep:config(),
 	      Data :: unicode:chardata()) ->
-    [unicode:charlist()] | unicode:chardata().
+    [unicode:charlist()] |
+    [{unicode:charlist(), Freq ::pos_integer()}] |
+    [{unicode:charlist(), Freq ::pos_integer(), Pos :: integer()}] .
 analyze(Config, Bin) when is_binary(Bin) ->
     analyze(Config, binary_to_list(Bin));
 analyze(#{char_filter := CharFilter,
@@ -138,10 +149,12 @@ tokenize(undefined, Data) ->
 
 token_filter(#{transform := Transform,
 	       add := Add,
-	       delete := Delete}, Data) ->
+	       delete := Delete,
+	       stats := Stats}, Data) ->
     T = token_transform(Transform, Data),
     D = token_delete(Delete, T),
-    token_add(Add, D);
+    A = token_add(Add, D),
+    token_stats(Stats, A);
 token_filter(undefined, Data) ->
     Data.
 
@@ -181,3 +194,32 @@ token_add([Rule | Rest], Data) ->
     token_add(Rest, Interm);
 token_add([], Data) ->
     Data.
+
+token_stats(unique, Data) ->
+    lists:usort(Data);
+token_stats(freqs, Data) ->
+    token_freqs(Data);
+token_stats(positions, Data) ->
+    token_positions(Data);
+token_stats(undefined, Data) ->
+    Data.
+
+token_freqs(Data) ->
+    Fun = fun(V) -> V + 1 end,
+    token_freqs(Data, Fun, #{}).
+
+token_freqs([Token | Rest], Fun, Map) ->
+    NewMap = maps:update_with(Token, Fun, 1, Map),
+    token_freqs(Rest, Fun, NewMap);
+token_freqs([], _Fun, Map) ->
+    maps:to_list(Map).
+
+token_positions(Data) ->
+    Fun = fun({V, P}) -> {V + 1, P} end,
+    token_positions(Data, Fun, #{}, 0).
+
+token_positions([Token | Rest], Fun, Map, Pos) ->
+    NewMap = maps:update_with(Token, Fun, {1, Pos}, Map),
+    token_positions(Rest, Fun, NewMap, Pos+1);
+token_positions([], _Fun, Map, _Pos) ->
+    [{T,F,P} || {T, {F,P}} <- maps:to_list(Map)].
