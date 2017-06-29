@@ -37,7 +37,8 @@ rebar.lock
 .rebar/
 
 #generated erlang sources
-term_prep_wbp.erl
+src/term_prep_wbp.erl
+src/term_prep_stopwords.erl
 
 #other
 priv/latest/

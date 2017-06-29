@@ -1,147 +1,183 @@
+%%%===================================================================
+%% @author Erdem Aksu
+%% @copyright 2017 Pundun Labs AB
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+%% implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%% -------------------------------------------------------------------
+%% @doc
+%% Module Description:
+%% @end
+%%%===================================================================
+
 -module(term_prep).
 
 %% Exported functions
--export([init/0]).
+-export([init/0,
+	 config/1,
+	 analyze/1,
+	 analyze/2]).
+
 -include_lib("gb_log/include/gb_log.hrl").
--define(UWB_MOD, term_prep_uwb_lib).
+
+-type char_filter() :: nfc | nfd | nfkc | nfkd |
+		       {M :: module(), F :: atom(), A :: [any()]} |
+		       undefined.
+
+-type tokenizer() :: unicode_word_boundaries |
+		     {M :: module(), F :: atom(), A :: [any()]} |
+		     undefined.
+
+-type token_transform() :: lowercase | uppercase | casefold |
+			   {M :: module(), F :: atom(), A :: [any()]} |
+			   undefined.
+
+-type token_add() :: {M :: module(), F :: atom(), A :: [any()]} |
+		     undefined.
+
+-type token_delete() :: english_stopwords |
+			lucene_stopwords |
+			wikipages_stopwords |
+			{M :: module(), F :: atom(), A :: [any()]} |
+			undefined.
+
+-type token_filter() :: #{transform := token_transform(),
+			  add := token_add() | [token_add()],
+			  delete := token_delete() | [token_delete()]} |
+			undefined.
+
+-type config() :: #{char_filter := char_filter(),
+		    tokenizer := tokenizer(),
+		    token_filter := token_filter()}.
 %%%===================================================================
 %%% API
 %%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @doc
-%% @end
-%%--------------------------------------------------------------------
--spec init() -> ok.
+-spec init() ->
+    ok | {error, Reason :: term()}.
 init() ->
-    init([?UWB_MOD]).
-
-init(Modules)->
-    [init_(Mod) || Mod <- Modules].
-
-init_(Mod) ->
-    case code:which(Mod) of
-	non_existing ->
-	    create_code(Mod);
-	_ ->
-	    ok
+    ResL = term_prep_code_gen:init(),
+    case lists:usort(ResL) of
+	[ok] -> ok;
+	Else ->
+	    {error, [R || R <- Else, R =/= ok]}
     end.
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+-spec config(term()) ->
+    config().
+config(unicode_nfc_words) ->
+    #{char_filter => nfc,
+      tokenizer => unicode_word_boundaries,
+      token_filter => #{transform => lowercase,
+			add => undefined,
+			delete => [english_stopwords]}};
+config(unicode_nfd_words) ->
+    C = config(unicode_nfc_words),
+    C#{char_filter => nfd};
+config(unicode_nfkc_words) ->
+    C = config(unicode_nfc_words),
+    C#{char_filter => nfkc};
+config(unicode_nfkd_words) ->
+    C = config(unicode_nfc_words),
+    C#{char_filter => nfkd};
+config(wiki_analysis) ->
+    #{char_filter => nfc,
+      tokenizer => unicode_word_boundaries,
+      token_filter => #{transform => lowercase,
+			add => undefined,
+			delete => [english_stopwords, wikipages_stopwords]}};
+config(_) ->
+    #{char_filter => undefined,
+      tokenizer => undefined,
+      token_filter => undefined}.
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Creates a module from a generated parser.
-%% @end
-%%--------------------------------------------------------------------
-create_code(?UWB_MOD) ->
-    PrivDir = code:priv_dir(term_prep),
-    create_code_(filename:join(PrivDir,"WordBreakProperty.txt"));
-create_code(_Else) ->
-    ?debug("Unknown module name: ~p", [_Else]).
+-spec analyze(Data :: unicode:chardata()) ->
+    [unicode:charlist()] | unicode:chardata().
+analyze(Data)  ->
+    analyze(config(unicode_nfc_words), Data).
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Creates a module by parsing given file.
-%% @end
-%%--------------------------------------------------------------------
-create_code_(File) ->
-    {ok, Bin} = file:read_file(File),
-    {ok, Tokens, _} = erl_scan:string(binary_to_list(Bin)),
-    {ok, Properties} = term_prep_wbp:parse(Tokens),
-    CEForms = make_mod(Properties),
-    io:format("~p~n", [CEForms]),
-    {ok, _, Beam } = compile:forms(CEForms, [from_core, binary]),
-    code:load_binary(?UWB_MOD, [], Beam).
+-spec analyze(Config :: term_prep:config(),
+	      Data :: unicode:chardata()) ->
+    [unicode:charlist()] | unicode:chardata().
+analyze(Config, Bin) when is_binary(Bin) ->
+    analyze(Config, binary_to_list(Bin));
+analyze(#{char_filter := CharFilter,
+	  tokenizer := Tokenizer,
+	  token_filter := TokenFilter}, Data) ->
+    Normalized = normalize(CharFilter, Data),
+    Tokenized = tokenize(Tokenizer, Normalized),
+    token_filter(TokenFilter, Tokenized).
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Make module 'stringprep_lib' with map/1 and prohibit/1 functions.
-%% @end
-%%--------------------------------------------------------------------
-make_mod(Properties) ->
-    ModuleName = cerl:c_atom(?UWB_MOD),
-    cerl:c_module(ModuleName,
-		  [cerl:c_fname(prop, 1),
-		   cerl:c_fname(module_info, 0),
-		   cerl:c_fname(module_info, 1)],
-		  [make_prop_fun(Properties) | mod_info(ModuleName)]).
+normalize(nfc, Data) ->
+    unicode:characters_to_nfc_list(Data);
+normalize(nfd, Data) ->
+    unicode:characters_to_nfc_list(Data);
+normalize(nfkc, Data) ->
+    unicode:characters_to_nfkc_list(Data);
+normalize(nfkd, Data) ->
+    unicode:characters_to_nfkd_list(Data);
+normalize({Mod, Fun, Args}, Data) ->
+    apply(Mod, Fun, [Data | Args]);
+normalize(undefined, Data) ->
+    Data.
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Make prop/1 function.
-%% @end
-%%--------------------------------------------------------------------
-make_prop_fun(Mappings) ->
-    Arg1 = cerl:c_var('FuncArg1'),
-    Else = cerl:c_var('Else'),
+tokenize(unicode_word_boundaries, Data) ->
+    term_prep_uts:word_boundaries(Data);
+tokenize({Mod, Fun, Args}, Data) ->
+    apply(Mod, Fun, [Data | Args]);
+tokenize(undefined, Data) ->
+    Data.
 
-    Clauses = make_prop_clauses(Arg1, Mappings),
+token_filter(#{transform := Transform,
+	       add := Add,
+	       delete := Delete}, Data) ->
+    T = token_transform(Transform, Data),
+    D = token_delete(Delete, T),
+    token_add(Add, D);
+token_filter(undefined, Data) ->
+    Data.
 
-    LastClause = cerl:c_clause([Else],
-			       cerl:c_atom(true),
-			       cerl:c_atom(undefined)),
-    Case = cerl:c_case(Arg1, Clauses ++ [LastClause]),
-    {cerl:c_fname(prop,1), cerl:c_fun([Arg1], Case)}.
+token_transform(lowercase, Data) ->
+    [string:lowercase(S) || S <-  Data];
+token_transform(casefold, Data) ->
+    [string:casefold(S) || S <-  Data];
+token_transform(uppercase, Data) ->
+    [string:uppercase(S) || S <-  Data];
+token_transform({Mod, Fun, Args}, Data) ->
+    apply(Mod, Fun, [Data | Args]);
+token_transform(undefined, Data) ->
+    Data.
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Make case clauses for prop/1 function.
-%% @end
-%%--------------------------------------------------------------------
-make_prop_clauses(Arg1, Mappings) ->
-    make_prop_clauses(Arg1, Mappings,[]).
+token_delete(english_stopwords, Data) ->
+    [S || S <- Data, term_prep_english_stopwords:prop(S) == undefined];
+token_delete(lucene_stopwords, Data) ->
+    [S || S <- Data, term_prep_lucene_stopwords:prop(S) == undefined];
+token_delete(wikipages_stopwords, Data) ->
+    [S || S <- Data, term_prep_wikipages_stopwords:prop(S) == undefined];
+token_delete({Mod, Fun, Args}, Data) ->
+    apply(Mod, Fun, [Data | Args]);
+token_delete(undefined, Data) ->
+    Data;
+token_delete([Rule | Rest], Data) ->
+    Interm = token_delete(Rule, Data),
+    token_delete(Rest, Interm);
+token_delete([], Data) ->
+    Data.
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Make case clauses for prop/1 function.
-%% @end
-%%--------------------------------------------------------------------
-make_prop_clauses(_Arg1, [], Acc) ->
-    lists:reverse(Acc);
-make_prop_clauses(Arg1, [[{integer, _Line, Val},
-			  {var, _Line, Prop} ] | Rest], Acc) ->
-    Clause = cerl:c_clause([cerl:c_int(Val)],
-			   cerl:c_atom(true),
-			   cerl:c_atom(Prop)),
-    make_prop_clauses(Arg1, Rest, [Clause | Acc]);
-make_prop_clauses(Arg1, [[{{integer, _Line, Val1},
-			   {integer, _Line, Val2}},
-			  {var, _Line, Prop} ] | Rest], Acc) ->
-    Arg = cerl:c_var('Char'),
-    GE = make_call(erlang, '>=', [Arg, cerl:c_int(Val1)]),
-    LE = make_call(erlang, '=<', [Arg, cerl:c_int(Val2)]),
-    Guard = make_call(erlang, 'and', [GE, LE]),
-    Clause = cerl:c_clause([Arg],
-			    Guard,
-			    cerl:c_atom(Prop)),
-    make_prop_clauses(Arg1, Rest, [Clause | Acc]);
-make_prop_clauses(_Arg1, [[{_, Line, _}] | _Rest], _Acc) ->
-    {error, io_lib:format("Syntax error: ~p", [Line])}.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Make module_info/1 function.
-%% @end
-%%--------------------------------------------------------------------
-mod_info(Name) ->
-    M = cerl:c_atom(erlang),
-    F = cerl:c_atom(get_module_info),
-    Info0 = {cerl:c_fname(module_info, 0),
-	     cerl:c_fun([], cerl:c_call(M, F, [Name]))},
-    Key = cerl:c_var('Key'),
-    Info1 = {cerl:c_fname(module_info, 1),
-	     cerl:c_fun([Key], cerl:c_call(M, F, [Name, Key]))},
-    [Info0, Info1].
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Make a function call cerl with given Mod, Fun, and Args.
-%% @end
-%%--------------------------------------------------------------------
-make_call(Mod0, Fun0, Args) ->
-    Mod = cerl:c_atom(Mod0),
-    Fun = cerl:c_atom(Fun0),
-    cerl:c_call(Mod, Fun, Args).
+token_add({Mod, Fun, Args}, Data) ->
+    apply(Mod, Fun, [Data | Args]);
+token_add(undefined, Data) ->
+    Data;
+token_add([Rule | Rest], Data) ->
+    Interm = token_add(Rule, Data),
+    token_add(Rest, Interm);
+token_add([], Data) ->
+    Data.
