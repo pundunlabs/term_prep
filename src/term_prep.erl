@@ -120,12 +120,12 @@ analyze(Data)  ->
     [{unicode:charlist(), Freq ::pos_integer(), Pos :: integer()}] .
 analyze(Config, Bin) when is_binary(Bin) ->
     analyze(Config, binary_to_list(Bin));
-analyze(#{char_filter := CharFilter,
-	  tokenizer := Tokenizer,
-	  token_filter := TokenFilter}, Data) ->
-    Normalized = normalize(CharFilter, Data),
-    Tokenized = tokenize(Tokenizer, Normalized),
-    token_filter(TokenFilter, Tokenized).
+analyze(Config, Data) when is_map(Config) ->
+    Normalized = normalize(maps:get(char_filter, Config, undefined), Data),
+    Tokenized = tokenize(maps:get(tokenizer, Config, undefined), Normalized),
+    token_filter(maps:get(token_filter, Config, undefined), Tokenized);
+analyze(_NotMap, Data) ->
+    Data.
 
 normalize(nfc, Data) ->
     unicode:characters_to_nfc_list(Data);
@@ -147,14 +147,11 @@ tokenize({Mod, Fun, Args}, Data) ->
 tokenize(undefined, Data) ->
     Data.
 
-token_filter(#{transform := Transform,
-	       add := Add,
-	       delete := Delete,
-	       stats := Stats}, Data) ->
-    T = token_transform(Transform, Data),
-    D = token_delete(Delete, T),
-    A = token_add(Add, D),
-    token_stats(Stats, A);
+token_filter(Filter, Data) when is_map(Filter) ->
+    T = token_transform(maps:get(transform, Filter, undefined), Data),
+    D = token_delete(maps:get(delete, Filter, undefined), T),
+    A = token_add(maps:get(add, Filter, undefined), D),
+    token_stats(maps:get(stats, Filter, undefined), A);
 token_filter(undefined, Data) ->
     Data.
 
