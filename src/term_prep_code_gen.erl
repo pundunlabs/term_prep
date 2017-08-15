@@ -179,4 +179,3 @@ make_call(Mod0, Fun0, Args) ->
     Mod = cerl:c_atom(Mod0),
     Fun = cerl:c_atom(Fun0),
     cerl:c_call(Mod, Fun, Args).
-

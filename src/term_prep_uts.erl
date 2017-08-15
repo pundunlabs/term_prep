@@ -31,7 +31,7 @@ word_boundaries(Chardata) when is_binary(Chardata) -> %% WB1
     wb(binary_to_list(Chardata), [], [], undefined);
 word_boundaries(Chardata) when is_list(Chardata) -> %% WB1
     wb(Chardata, [], [], undefined). 
-    
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -75,7 +75,7 @@ wb([A], Word, Acc, Last) ->
 	{_, Else} ->
 	    wb([], [A | Word], Acc, Else)
     end;
-wb([A | Rest], Word, Acc, Last) -> 
+wb([A | Rest], Word, Acc, Last) ->
     case {Last, term_prep_uwb_lib:prop(A)} of
 	{'ZWJ', 'Glue_After_Zwj'} -> %%WB3c
 	    wb(Rest, [A | Word], Acc, 'Glue_After_Zwj');
@@ -151,7 +151,7 @@ wb([A | Rest], Word, Acc, Last) ->
 	{WB14, 'E_Modifier'} when WB14 == 'E_Base' orelse
 				  WB14 == 'E_Base_GAZ' -> %%WB14
 	    wb(Rest, [A | Word], Acc, 'E_Modifier');
-	{sot, 'Regional_Indicator'} -> %%WB15	
+	{sot, 'Regional_Indicator'} -> %%WB15
 	    wb(Rest, [A | Word], Acc, 'Regional_Indicator');
 	{'Regional_Indicator', 'Regional_Indicator'} -> %%WB16
 	    wb(Rest, [A | Word], Acc, 'Regional_Indicator');
