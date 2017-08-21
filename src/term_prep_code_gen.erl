@@ -81,7 +81,6 @@ create_code(#{parser_mod := ParserMod,
     {ok, Tokens, _} = erl_scan:string(binary_to_list(Bin)),
     {ok, Properties} = ParserMod:parse(Tokens),
     CEForms = make_mod(OutMod, Properties),
-    io:format("~p~n", [CEForms]),
     {ok, _, Beam } = compile:forms(CEForms, [from_core, binary]),
     code:load_binary(OutMod, [], Beam).
 

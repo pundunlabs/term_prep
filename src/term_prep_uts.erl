@@ -30,7 +30,7 @@
 word_boundaries(Chardata) when is_binary(Chardata) -> %% WB1
     wb(binary_to_list(Chardata), [], [], undefined);
 word_boundaries(Chardata) when is_list(Chardata) -> %% WB1
-    wb(Chardata, [], [], undefined). 
+    wb(Chardata, [], [], undefined).
 
 %%%===================================================================
 %%% Internal functions
