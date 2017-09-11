@@ -213,7 +213,7 @@ token_freqs([], _Fun, Map) ->
 
 token_positions(Data) ->
     Fun = fun({V, P}) -> {V + 1, P} end,
-    token_positions(Data, Fun, #{}, 0).
+    token_positions(Data, Fun, #{}, 1).
 
 token_positions([Token | Rest], Fun, Map, Pos) ->
     NewMap = maps:update_with(Token, Fun, {1, Pos}, Map),
