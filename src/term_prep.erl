@@ -166,21 +166,25 @@ token_transform({Mod, Fun, Args}, Data) ->
 token_transform(undefined, Data) ->
     Data.
 
-token_delete(english_stopwords, Data) ->
-    [S || S <- Data, term_prep_english_stopwords:prop(S) == undefined];
-token_delete(lucene_stopwords, Data) ->
-    [S || S <- Data, term_prep_lucene_stopwords:prop(S) == undefined];
-token_delete(wikipages_stopwords, Data) ->
-    [S || S <- Data, term_prep_wikipages_stopwords:prop(S) == undefined];
-token_delete({Mod, Fun, Args}, Data) ->
-    apply(Mod, Fun, [Data | Args]);
-token_delete(undefined, Data) ->
-    Data;
 token_delete([Rule | Rest], Data) ->
-    Interm = token_delete(Rule, Data),
+    Interm = token_delete_(Rule, Data),
     token_delete(Rest, Interm);
 token_delete([], Data) ->
     Data.
+
+token_delete_(english_stopwords, Data) ->
+    [S || S <- Data, term_prep_english_stopwords:prop(S) == undefined];
+token_delete_(lucene_stopwords, Data) ->
+    [S || S <- Data, term_prep_lucene_stopwords:prop(S) == undefined];
+token_delete_(wikipages_stopwords, Data) ->
+    [S || S <- Data, term_prep_wikipages_stopwords:prop(S) == undefined];
+token_delete_({Mod, Fun, Args}, Data) ->
+    apply(Mod, Fun, [Data | Args]);
+token_delete_(String, Data) ->
+    case io_lib:printable_unicode_list(String) of
+	true -> [S || S <- Data, not string:equal(String, S)];
+	false -> Data
+    end.
 
 token_add({Mod, Fun, Args}, Data) ->
     apply(Mod, Fun, [Data | Args]);
