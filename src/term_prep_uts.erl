@@ -54,7 +54,7 @@ wb([16#2028 | Rest], Word,  Acc, _) -> %%WB3a, WB3b
 wb([16#2029 | Rest], Word,  Acc, _) -> %%WB3a, WB3b
     wb(Rest, [], acc_word(Word, Acc), 'Newline');
 wb([A | Rest], Word,  Acc, undefined) -> %% first char after boundary
-    case term_prep_uwb_lib:prop(A) of
+    case term_prep_uwb_lib:property(A) of
 	undefined ->
 	    wb(Rest, Word, Acc, undefined);
 	WB4 when WB4 == 'Extend' orelse
@@ -65,7 +65,7 @@ wb([A | Rest], Word,  Acc, undefined) -> %% first char after boundary
 	    wb(Rest, [A | Word], Acc, Next)
     end;
 wb([A], Word, Acc, Last) ->
-    case {Last, term_prep_uwb_lib:prop(A)} of
+    case {Last, term_prep_uwb_lib:property(A)} of
 	{_, undefined} ->
 	    wb([], Word, Acc, undefined);
 	{_, WB4} when WB4 == 'Extend' orelse
@@ -76,7 +76,7 @@ wb([A], Word, Acc, Last) ->
 	    wb([], [A | Word], Acc, Else)
     end;
 wb([A | Rest], Word, Acc, Last) ->
-    case {Last, term_prep_uwb_lib:prop(A)} of
+    case {Last, term_prep_uwb_lib:property(A)} of
 	{'ZWJ', 'Glue_After_Zwj'} -> %%WB3c
 	    wb(Rest, [A | Word], Acc, 'Glue_After_Zwj');
 	{'ZWJ', 'E_Base_GAZ'} -> %%WB3c
@@ -99,7 +99,7 @@ wb([A | Rest], Word, Acc, Last) ->
 			       WB6 == 'MidNumLet' orelse
 			       WB6 == 'Single_Quote')) ->
 	    [H|T] = Rest,
-	    case term_prep_uwb_lib:prop(H) of
+	    case term_prep_uwb_lib:property(H) of
 		'ALetter' -> %%WB6/7
 		    wb(T, [H, A | Word], Acc, 'ALetter');
 		'Hebrew_Letter' -> %%WB6/7
@@ -111,7 +111,7 @@ wb([A | Rest], Word, Acc, Last) ->
 	    wb(Rest, [A | Word], Acc, 'Single_Quote');
 	{'Hebrew_Letter', 'Double_Quote'} ->
 	    [H|T] = Rest,
-	    case term_prep_uwb_lib:prop(H) of
+	    case term_prep_uwb_lib:property(H) of
 		'Hebrew_Letter' ->%%WB7b/c
 		    wb(T, [H, A | Word], Acc, 'Hebrew_Letter');
 		_ ->
@@ -129,7 +129,7 @@ wb([A | Rest], Word, Acc, Last) ->
 	                       WB11 == 'MidNumLet' orelse
 			       WB11 == 'Single_Quote' -> %%WB11/12
 	    [H|T] = Rest,
-	    case term_prep_uwb_lib:prop(H) of
+	    case term_prep_uwb_lib:property(H) of
 		'Numeric' ->
 		    wb(T, [H, A | Word], Acc, 'Numeric');
 		_ ->

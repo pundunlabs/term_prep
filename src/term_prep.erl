@@ -173,11 +173,11 @@ token_delete([], Data) ->
     Data.
 
 token_delete_(english_stopwords, Data) ->
-    [S || S <- Data, term_prep_english_stopwords:prop(S) == undefined];
+    [S || S <- Data, not term_prep_english_stopwords:contains(S)];
 token_delete_(lucene_stopwords, Data) ->
-    [S || S <- Data, term_prep_lucene_stopwords:prop(S) == undefined];
+    [S || S <- Data, not term_prep_lucene_stopwords:contains(S)];
 token_delete_(wikipages_stopwords, Data) ->
-    [S || S <- Data, term_prep_wikipages_stopwords:prop(S) == undefined];
+    [S || S <- Data, not term_prep_wikipages_stopwords:contains(S)];
 token_delete_({Mod, Fun, Args}, Data) ->
     apply(Mod, Fun, [Data | Args]);
 token_delete_(String, Data) ->
