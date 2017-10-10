@@ -41,14 +41,12 @@
 			   {M :: module(), F :: atom(), A :: [any()]} |
 			   undefined.
 
--type token_add() :: {M :: module(), F :: atom(), A :: [any()]} |
-		     undefined.
+-type token_add() :: {M :: module(), F :: atom(), A :: [any()]}.
 
 -type token_delete() :: english_stopwords |
 			lucene_stopwords |
 			wikipages_stopwords |
-			{M :: module(), F :: atom(), A :: [any()]} |
-			undefined.
+			{M :: module(), F :: atom(), A :: [any()]}.
 
 -type token_stats() :: unique |
 		       freqs |
@@ -56,8 +54,8 @@
 		       undefined.
 
 -type token_filter() :: #{transform := token_transform(),
-			  add := token_add() | [token_add()],
-			  delete := token_delete() | [token_delete()],
+			  add := [token_add()],
+			  delete := [token_delete()],
 			  stats := token_stats()} |
 			undefined.
 
@@ -149,9 +147,9 @@ tokenize(undefined, Data) ->
 
 token_filter(Filter, Data) when is_map(Filter) ->
     T = token_transform(maps:get(transform, Filter, undefined), Data),
-    D = token_delete(maps:get(delete, Filter, undefined), T),
-    A = token_add(maps:get(add, Filter, undefined), D),
-    token_stats(maps:get(stats, Filter, undefined), A);
+    D = token_delete(maps:get(delete, Filter, []), T),
+    S = token_stats(maps:get(stats, Filter, undefined), D),
+    token_add(maps:get(add, Filter, []), S);
 token_filter(undefined, Data) ->
     Data.
 
@@ -186,16 +184,66 @@ token_delete_(String, Data) ->
 	false -> Data
     end.
 
+-spec token_add(AddRules :: {M :: atom(), F :: atom(), A :: [term()]} |
+			    [string()],
+		Data :: [Term :: unicode:chardata()] |
+			[{Term :: unicode:chardata(), Freq :: integer()}] |
+			[{Term :: unicode:chardata(), Freq :: integer(), Pos :: integer()}]
+			) ->
+    [Term :: unicode:chardata()] |
+    [{Term :: unicode:chardata(), Freq :: integer()}] |
+    [{Term :: unicode:chardata(), Freq :: integer(), Pos :: integer()}].
 token_add({Mod, Fun, Args}, Data) ->
     apply(Mod, Fun, [Data | Args]);
-token_add(undefined, Data) ->
-    Data;
 token_add([Rule | Rest], Data) ->
-    Interm = token_add(Rule, Data),
+    Interm =
+	case io_lib:printable_unicode_list(Rule) of
+	    true ->
+		Synonyms = get_synonyms(Rule),
+		lists:append(Data, tokens_to_add(Data, Synonyms, []));
+	    false ->
+		Data
+	end,
     token_add(Rest, Interm);
 token_add([], Data) ->
     Data.
 
+tokens_to_add([Term | Rest], Synonyms, Acc) ->
+    case make_add_terms(Term, Synonyms) of
+	[] -> tokens_to_add(Rest, Synonyms, Acc);
+	Add -> tokens_to_add(Rest, Synonyms, Acc ++ Add)
+    end;
+tokens_to_add([], _, Acc) ->
+    Acc.
+
+make_add_terms(TermStats, Synonyms) ->
+    Term = get_term_(TermStats),
+    case maps:is_key(Term, Synonyms) of
+	true ->
+	    [make_add_term(TermStats, S) || S <- maps:get(Term, Synonyms)];
+	false ->
+	    []
+    end.
+
+get_term_({Term, _F, _P}) ->
+    Term;
+get_term_({Term, _F}) ->
+    Term;
+get_term_(Term) ->
+    Term.
+
+make_add_term({_T, F, P}, S) ->
+    {S, F, P};
+make_add_term({_T, F}, S) ->
+    {S, F};
+make_add_term(_T, S) ->
+    S.
+
+-spec token_stats(Stat :: token_stats(),
+		  Data :: [unicode:chardata()]) ->
+    [Term :: unicode:chardata()] |
+    [{Term :: unicode:chardata(), Freq :: integer()}] |
+    [{Term :: unicode:chardata(), Freq :: integer(), Pos :: integer()}].
 token_stats(unique, Data) ->
     lists:usort(Data);
 token_stats(freqs, Data) ->
@@ -224,3 +272,13 @@ token_positions([Token | Rest], Fun, Map, Pos) ->
     token_positions(Rest, Fun, NewMap, Pos+1);
 token_positions([], _Fun, Map, _Pos) ->
     [{T,F,P} || {T, {F,P}} <- maps:to_list(Map)].
+
+
+get_synonyms(String) ->
+    Tokens = term_prep_uts:word_boundaries(String),
+    Terms = sets:to_list(sets:from_list(Tokens)),
+    {_, Synonyms} = lists:foldl(fun get_synonyms/2, {Terms, #{}}, Terms),
+    Synonyms.
+
+get_synonyms(Term, {Terms, Synonyms}) ->
+    {Terms, maps:put(Term, lists:delete(Term, Terms), Synonyms)}.
