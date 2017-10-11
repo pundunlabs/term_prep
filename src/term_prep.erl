@@ -81,7 +81,7 @@ config(unicode_nfc_words) ->
     #{char_filter => nfc,
       tokenizer => unicode_word_boundaries,
       token_filter => #{transform => lowercase,
-			add => undefined,
+			add => [],
 			delete => [english_stopwords],
 			stats => unique}};
 config(unicode_nfd_words) ->
@@ -97,12 +97,10 @@ config(wiki_analysis) ->
     #{char_filter => nfc,
       tokenizer => unicode_word_boundaries,
       token_filter => #{transform => lowercase,
-			add => undefined,
+			add => [],
 			delete => [english_stopwords, wikipages_stopwords]}};
 config(_) ->
-    #{char_filter => undefined,
-      tokenizer => undefined,
-      token_filter => undefined}.
+    #{}.
 
 -spec analyze(Data :: unicode:chardata()) ->
     [unicode:charlist()] |
