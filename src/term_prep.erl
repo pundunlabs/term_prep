@@ -119,9 +119,7 @@ analyze(Config, Bin) when is_binary(Bin) ->
 analyze(Config, Data) when is_map(Config) ->
     Normalized = normalize(maps:get(char_filter, Config, undefined), Data),
     Tokenized = tokenize(maps:get(tokenizer, Config, undefined), Normalized),
-    token_filter(maps:get(token_filter, Config, undefined), Tokenized);
-analyze(_NotMap, Data) ->
-    Data.
+    token_filter(maps:get(token_filter, Config, undefined), Tokenized).
 
 normalize(nfc, Data) ->
     unicode:characters_to_nfc_list(Data);
@@ -141,7 +139,7 @@ tokenize(unicode_word_boundaries, Data) ->
 tokenize({Mod, Fun, Args}, Data) ->
     apply(Mod, Fun, [Data | Args]);
 tokenize(undefined, Data) ->
-    Data.
+    [Data].
 
 token_filter(Filter, Data) when is_map(Filter) ->
     T = token_transform(maps:get(transform, Filter, undefined), Data),
